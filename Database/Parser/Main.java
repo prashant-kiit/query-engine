@@ -41,12 +41,42 @@ public class Main {
             parseTree2 = parseForWherePass(parseTree1);
         if (parseTree1.get("ORDER_BY") != null)
             parseTree2 = parseForOrderByPass(parseTree1);
+        if (parseTree1.get("OFFSET") != null)
+            parseTree2 = parseForOffsetPass(parseTree1);
+        if (parseTree1.get("LIMIT") != null)
+            parseTree2 = parseForLimitPass(parseTree1);
         if (parseTree1.get("INSERT_INTO") != null)
             parseTree2 = parseForInsertPass(parseTree1);
 
         // System.out.println("parseTree: " + parseTree2);
 
         return parseTree2;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseForLimitPass(Map<String, Object> parseTree) {
+        List<String> limitTokens = (List<String>) parseTree.get("LIMIT");
+
+        // Extract limit
+        Integer limit = Integer.parseInt(limitTokens.get(0));
+
+        // Construct parse tree
+        parseTree.put("LIMIT", limit);
+
+        return parseTree;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseForOffsetPass(Map<String, Object> parseTree) {
+        List<String> offsetTokens = (List<String>) parseTree.get("OFFSET");
+
+        // Extract offset
+        Integer offset = Integer.parseInt(offsetTokens.get(0));
+
+        // Construct parse tree
+        parseTree.put("OFFSET", offset);
+
+        return parseTree;
     }
 
     @SuppressWarnings("unchecked")
@@ -115,8 +145,7 @@ public class Main {
                     currentSubSubMap = new LinkedHashMap<>();
                     currentSubSubMap.put("not", false);
                 }
-                if(token.toLowerCase().equals("not")) {
-                    System.out.println("token: " + token);
+                if (token.toLowerCase().equals("not")) {
                     currentSubSubMap.put("not", true);
                     continue;
                 }
