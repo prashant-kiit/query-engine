@@ -2,35 +2,113 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Main {
     public static void main(String[] args) {
-        String sourceCode = "query1.sql";
+        String sourceCode = "query2.sql";
         Path pathToSourceCode = Paths.get("Database/Query", sourceCode);
-        List<String> symbols = Arrays.asList("select", "from", "where", "order_by", "limit"); 
+        List<String> symbols = Arrays.asList("select", "from", "where", "order_by", "offset", "limit", "insert_into",
+                "values");
 
         try {
             // reading file
             StringBuilder language = getLanguageFromSourceCode(pathToSourceCode);
 
             // tokenize using comma, white space and new line as delimiters
-            List<String> tokens = getTokenFromString(language);
+            List<String> tokens = getTokenFromLanguage(language);
 
             // parse tokens based on symbols list
-            Map<String, List<String>> parseTree = getParseTreeFromTokens(tokens, symbols);
+            Map<String, Object> parseTree = getParseTreeFromTokens(tokens, symbols);
 
             // Print parseTree
             parseTree.forEach((key, value) -> System.out.println(key + " -> " + value));
+            // printJson(mapToJson(parseTree));
         } catch (Exception e) {
             System.out.println("Error reading file: " + e);
         }
     }
 
-    private static Map<String, List<String>> getParseTreeFromTokens(List<String> tokens, List<String> symbols) {
-        Map<String, List<String>> parseTree = new LinkedHashMap<>();
+    private static Map<String, Object> getParseTreeFromTokens(List<String> tokens, List<String> symbols) {
+        Map<String, Object> parseTree1 = parseForFirstPass(tokens, symbols);
+
+        Map<String, Object> parseTree2 = new LinkedHashMap<>();
+        if (parseTree1.get("WHERE") != null)
+            parseTree2 = parseForWherePass(parseTree1);
+        if (parseTree1.get("INSERT_INTO") != null)
+            parseTree2 = parseForInsertPass(parseTree1);
+
+        // System.out.println("parseTree: " + parseTree2);
+
+        return parseTree2;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseForInsertPass(Map<String, Object> parseTree) {
+        Map<String, Object> insertInto = new LinkedHashMap<>();
+
+        // Extract table name and columns
+        List<String> insertIntoTokens = (List<String>) parseTree.get("INSERT_INTO");
+        String table = insertIntoTokens.get(0);
+        List<String> columns = insertIntoTokens.stream()
+                .skip(1)
+                .collect(Collectors.toList());
+        insertInto.put("table", table);
+        insertInto.put("columns", columns);
+
+        // Extract rows to be inserted
+        List<String> valuesTokens = (List<String>) parseTree.get("VALUES");
+        Integer chunkSize = columns.size();
+        List<List<String>> values = IntStream.range(0, (int) Math.ceil((double) valuesTokens.size() / chunkSize))
+                .mapToObj(i -> valuesTokens.subList(i * chunkSize,
+                        Math.min(valuesTokens.size(), (i + 1) * chunkSize)))
+                .collect(Collectors.toList());
+
+        // Construct parse tree
+        parseTree.put("INSERT_INTO", insertInto);
+        parseTree.put("VALUES", values);
+
+        return parseTree;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseForWherePass(Map<String, Object> parseTree) {
+        List<String> whereTokens = (List<String>) parseTree.get("WHERE");
+        List<String> operators = Arrays.asList("AND", "OR", "NOT");
+
+        // Extract where clause
+        List<List<String>> where = new ArrayList<>();
+        List<String> currentSubArray = new ArrayList<>();
+        for (String token : whereTokens) {
+            if (operators.contains(token)) {
+                if (!currentSubArray.isEmpty()) {
+                    where.add(new ArrayList<>(currentSubArray));
+                    currentSubArray.clear();
+                }
+                where.add(Collections.singletonList(token));
+            } else {
+                currentSubArray.add(token);
+            }
+        }
+
+        if (!currentSubArray.isEmpty()) {
+            where.add(currentSubArray);
+        }
+
+        // Construct parse tree
+        parseTree.put("WHERE", where);
+
+        return parseTree;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseForFirstPass(List<String> tokens, List<String> symbols) {
+        Map<String, Object> parseTree = new LinkedHashMap<>();
         String currentKey = "";
 
         for (String word : tokens) {
@@ -38,15 +116,15 @@ public class Main {
                 currentKey = word.toUpperCase();
                 parseTree.put(currentKey, new ArrayList<>());
             } else {
-                parseTree.get(currentKey).add(word);
+                ((List<String>) parseTree.get(currentKey)).add(word);
             }
         }
 
         return parseTree;
     }
 
-    private static List<String> getTokenFromString(StringBuilder language) {
-        List<String> tokens = Arrays.asList(language.toString().split("[\\s,\\n]+"));
+    private static List<String> getTokenFromLanguage(StringBuilder language) {
+        List<String> tokens = Arrays.asList(language.toString().split("[\\s,\\n()]+"));
         return tokens;
     }
 
@@ -60,5 +138,55 @@ public class Main {
         reader.close();
 
         return language;
+    }
+
+    private static String mapToJson(Map<String, Object> map) {
+        StringBuilder jsonBuilder = new StringBuilder();
+        jsonBuilder.append("{");
+
+        int size = map.size();
+        int count = 0;
+
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            jsonBuilder.append("\"").append(entry.getKey()).append("\":");
+
+            if (entry.getValue() instanceof String) {
+                jsonBuilder.append("\"").append(entry.getValue()).append("\"");
+            } else {
+                jsonBuilder.append(entry.getValue());
+            }
+
+            count++;
+            if (count < size) {
+                jsonBuilder.append(",");
+            }
+        }
+
+        jsonBuilder.append("}");
+        return jsonBuilder.toString();
+    }
+
+    private static void printJson(String jsonString) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder("jq");
+            Process process = processBuilder.start();
+
+            // Write JSON string to process stdin
+            OutputStream outputStream = process.getOutputStream();
+            outputStream.write(jsonString.getBytes());
+            outputStream.close(); // Close stdin after writing
+
+            // Read and print the formatted output
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);
+            }
+
+            // Wait for process to complete
+            process.waitFor();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
