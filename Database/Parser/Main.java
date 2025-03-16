@@ -2,7 +2,6 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +25,8 @@ public class Main {
             Map<String, Object> parseTree = getParseTreeFromTokens(tokens, keywords);
 
             // Print parseTree
-            parseTree.forEach((key, value) -> System.out.println(key + " -> " + value));
+            // parseTree.forEach((key, value) -> System.out.println(key + " -> " + value));
+            System.out.println(mapToJson(parseTree));
             // printJson(mapToJson(parseTree));
         } catch (Exception e) {
             System.out.println("Error reading file: " + e);
@@ -40,7 +40,7 @@ public class Main {
         if (parseTree1.get("WHERE") != null)
             parseTree2 = parseForWherePass(parseTree1);
         if (parseTree1.get("ORDER_BY") != null)
-            parseForOrderByPass(parseTree1);
+            parseTree2 = parseForOrderByPass(parseTree1);
         if (parseTree1.get("INSERT_INTO") != null)
             parseTree2 = parseForInsertPass(parseTree1);
 
@@ -52,8 +52,9 @@ public class Main {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> parseForOrderByPass(Map<String, Object> parseTree) {
         List<String> orderByTokens = (List<String>) parseTree.get("ORDER_BY");
+
+        // Extract order by
         List<Map<String, Object>> orderBy = new ArrayList<>();
-        
         Map<String, Object> currentSubMap = null;
         for (String orderByToken : orderByTokens) {
             if (!Symbols.ORDERS.getSymbols().contains(orderByToken.toLowerCase())) {
@@ -67,7 +68,9 @@ public class Main {
             }
         }
 
+        // Construct parse tree
         parseTree.put("ORDER_BY", orderBy);
+
         return parseTree;
     }
 
@@ -102,26 +105,42 @@ public class Main {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> parseForWherePass(Map<String, Object> parseTree) {
         List<String> whereTokens = (List<String>) parseTree.get("WHERE");
-        List<String> operators = Symbols.OPERATORS.getSymbols(); // ->
 
         // Extract where clause
-        List<List<String>> where = new ArrayList<>();
-        List<String> currentSubArray = new ArrayList<>();
+        Map<String, Object> where = new LinkedHashMap<>();
+        Map<String, Object> currentSubSubMap = null;
         for (String token : whereTokens) {
-            if (operators.contains(token)) {
-                if (!currentSubArray.isEmpty()) {
-                    where.add(new ArrayList<>(currentSubArray));
-                    currentSubArray.clear();
+            if (!Symbols.OPERATORS.getSymbols().contains(token.toLowerCase())) {
+                if (currentSubSubMap == null) {
+                    currentSubSubMap = new LinkedHashMap<>();
+                    currentSubSubMap.put("not", false);
                 }
-                where.add(Collections.singletonList(token));
+                if(token.toLowerCase().equals("not")) {
+                    System.out.println("token: " + token);
+                    currentSubSubMap.put("not", true);
+                    continue;
+                }
+                if (!currentSubSubMap.containsKey("column")) {
+                    currentSubSubMap.put("column", token);
+                    continue;
+                }
+                if (!currentSubSubMap.containsKey("operator")) {
+                    currentSubSubMap.put("operator", token);
+                    continue;
+                }
+                if (!currentSubSubMap.containsKey("value")) {
+                    currentSubSubMap.put("value", token);
+                    continue;
+                }
             } else {
-                currentSubArray.add(token);
+                where.put("expression" + currentSubSubMap.hashCode(), currentSubSubMap);
+                where.put("operation" + currentSubSubMap.hashCode(), token);
+                // System.out.println("where" + where);
+                currentSubSubMap = null;
             }
         }
 
-        if (!currentSubArray.isEmpty()) {
-            where.add(currentSubArray);
-        }
+        where.put("expression" + currentSubSubMap.hashCode(), currentSubSubMap);
 
         // Construct parse tree
         parseTree.put("WHERE", where);
@@ -220,7 +239,7 @@ public class Main {
 enum Symbols {
     KEYWORDS(Arrays.asList("select", "from", "where", "order_by", "offset", "limit", "insert_into",
             "values")),
-    OPERATORS(Arrays.asList("AND", "OR", "NOT")),
+    OPERATORS(Arrays.asList("and", "or")),
     SEPARATORS(Arrays.asList("\n", "\s", ",", "(", ")")),
     ORDERS(Arrays.asList("asc", "desc"));
 
