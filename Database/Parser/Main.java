@@ -40,6 +40,8 @@ public class Main {
             parseTree2 = parseForSelectPass(parseTree1);
         if (parseTree1.get("WHERE") != null)
             parseTree2 = parseForWherePass(parseTree1);
+        if (parseTree1.get("HAVING") != null)
+            parseTree2 = parseForHavingPass(parseTree1);
         if (parseTree1.get("ORDER_BY") != null)
             parseTree2 = parseForOrderByPass(parseTree1);
         if (parseTree1.get("OFFSET") != null)
@@ -211,6 +213,59 @@ public class Main {
     }
 
     @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseForHavingPass(Map<String, Object> parseTree) {
+        List<String> whereTokens = (List<String>) parseTree.get("HAVING");
+
+        // Extract where clause
+        Map<String, Object> where = new LinkedHashMap<>();
+        Map<String, Object> currentSubSubMap = null;
+        for (String token : whereTokens) {
+            if (!Symbols.OPERATORS.getSymbols().contains(token.toLowerCase())) {
+                if (currentSubSubMap == null) {
+                    currentSubSubMap = new LinkedHashMap<>();
+                    currentSubSubMap.put("not", false);
+                }
+                if (token.toLowerCase().equals("not")) {
+                    currentSubSubMap.put("not", true);
+                    continue;
+                }
+                if (!currentSubSubMap.containsKey("column")) {
+                    currentSubSubMap.put("column", token);
+                    continue;
+                }
+                if (!currentSubSubMap.containsKey("operator")) {
+                    currentSubSubMap.put("operator", token);
+                    continue;
+                }
+                if (!currentSubSubMap.containsKey("value")) {
+                    if (currentSubSubMap.get("operator").toString().toLowerCase().equals("in")) {
+                        currentSubSubMap.put("value", new ArrayList<>(Arrays.asList(token)));
+                    } else {
+                        currentSubSubMap.put("value", token);
+                    }
+                    continue;
+                } else if (currentSubSubMap.get("operator").toString().toLowerCase().equals("in")) {
+                    List<String> values = (List<String>) currentSubSubMap.get("value");
+                    values.add(token);
+                    currentSubSubMap.put("value", values);
+                }
+            } else {
+                where.put("expression" + currentSubSubMap.hashCode(), currentSubSubMap);
+                where.put("operation" + currentSubSubMap.hashCode(), token);
+                // System.out.println("where" + where);
+                currentSubSubMap = null;
+            }
+        }
+
+        where.put("expression" + currentSubSubMap.hashCode(), currentSubSubMap);
+
+        // Construct parse tree
+        parseTree.put("HAVING", where);
+
+        return parseTree;
+    }
+
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> parseForFirstPass(List<String> tokens) {
         List<String> keywords = Symbols.KEYWORDS.getSymbols();
         Map<String, Object> parseTree = new LinkedHashMap<>();
@@ -251,7 +306,7 @@ public class Main {
 
 enum Symbols {
     KEYWORDS(Arrays.asList("select", "from", "where", "order_by", "offset", "limit", "insert_into",
-            "values", "delete", "group_by")),
+            "values", "delete", "group_by", "having")),
     OPERATORS(Arrays.asList("and", "or")),
     SEPARATORS(Arrays.asList("\n", "\s", ",", "(", ")")),
     ORDERS(Arrays.asList("asc", "desc")),
