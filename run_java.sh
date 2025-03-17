@@ -1,0 +1,1 @@
+cd /mnt/e/Project/query-engine ; /usr/bin/env /usr/lib/jvm/java-21-openjdk-amd64/bin/java -XX:+ShowCodeDetailsInExceptionMessages -cp /home/prashant/.vscode-server/data/User/workspaceStorage/7333cb7567b5fe6d0617799a0f02fa9e/redhat.java/jdt_ws/query-engine_bbb227b2/bin Main
