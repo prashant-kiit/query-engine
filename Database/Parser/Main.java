@@ -61,22 +61,21 @@ public class Main {
         String finalAggregator = null;
         for (String token : selectTokens) {
             if (!Symbols.AGGREGATORS_KEYWORDS.getSymbols().contains(token.toLowerCase())) {
-                System.out.println("column: " + token);
                 Map<String, Object> currentSubMap = new LinkedHashMap<>();
                 currentSubMap.put("column", token);
-                currentSubMap.put("aggregator", null);
+                currentSubMap.put("aggregator", finalAggregator);
                 if (finalAggregator != null) {
-                    currentSubMap.put("aggregator", finalAggregator);
                     finalAggregator = null;
                 }
                 select.put("selectable" + currentSubMap.hashCode(), currentSubMap);
             } else {
-                System.out.println("aggregator: " + token);
                 finalAggregator = token;
             }
         }
+
         parseTree.put("SELECT", select);
-        return null;
+
+        return parseTree;
     }
 
     @SuppressWarnings("unchecked")
@@ -252,7 +251,7 @@ public class Main {
 
 enum Symbols {
     KEYWORDS(Arrays.asList("select", "from", "where", "order_by", "offset", "limit", "insert_into",
-            "values", "delete")),
+            "values", "delete", "group_by")),
     OPERATORS(Arrays.asList("and", "or")),
     SEPARATORS(Arrays.asList("\n", "\s", ",", "(", ")")),
     ORDERS(Arrays.asList("asc", "desc")),
