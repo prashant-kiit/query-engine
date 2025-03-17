@@ -10,7 +10,7 @@ import java.util.stream.IntStream;
 
 public class Main {
     public static void main(String[] args) {
-        String sourceCode = "query1.sql";
+        String sourceCode = "query3.sql";
         Path pathToSourceCode = Paths.get("Database/Query", sourceCode);
         List<String> keywords = Symbols.KEYWORDS.getSymbols(); //
 
@@ -20,13 +20,13 @@ public class Main {
 
             // tokenize using comma, white space and new line as delimiters
             List<String> tokens = getTokenFromLanguage(language);
-            // System.out.println("tokens: " + tokens);
+            System.out.println("tokens: " + tokens);
             // parse tokens based on symbols list
             Map<String, Object> parseTree = getParseTreeFromTokens(tokens, keywords);
 
             // Print parseTree
             // parseTree.forEach((key, value) -> System.out.println(key + " -> " + value));
-            System.out.println(mapToJson(parseTree));
+            System.out.println(parseTree);
             // printJson(mapToJson(parseTree));
         } catch (Exception e) {
             System.out.println("Error reading file: " + e);
@@ -132,7 +132,7 @@ public class Main {
         return parseTree;
     }
 
-    @SuppressWarnings({ "unchecked", "unused" })
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> parseForWherePass(Map<String, Object> parseTree) {
         List<String> whereTokens = (List<String>) parseTree.get("WHERE");
 
@@ -275,7 +275,7 @@ public class Main {
 
 enum Symbols {
     KEYWORDS(Arrays.asList("select", "from", "where", "order_by", "offset", "limit", "insert_into",
-            "values")),
+            "values", "delete")),
     OPERATORS(Arrays.asList("and", "or")),
     SEPARATORS(Arrays.asList("\n", "\s", ",", "(", ")")),
     ORDERS(Arrays.asList("asc", "desc"));
