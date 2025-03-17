@@ -20,7 +20,7 @@ public class Main {
 
             // tokenize using comma, white space and new line as delimiters
             List<String> tokens = getTokenFromLanguage(language);
-
+            // System.out.println("tokens: " + tokens);
             // parse tokens based on symbols list
             Map<String, Object> parseTree = getParseTreeFromTokens(tokens, keywords);
 
@@ -132,7 +132,7 @@ public class Main {
         return parseTree;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "unused" })
     private static Map<String, Object> parseForWherePass(Map<String, Object> parseTree) {
         List<String> whereTokens = (List<String>) parseTree.get("WHERE");
 
@@ -158,8 +158,16 @@ public class Main {
                     continue;
                 }
                 if (!currentSubSubMap.containsKey("value")) {
-                    currentSubSubMap.put("value", token);
+                    if (currentSubSubMap.get("operator").toString().toLowerCase().equals("in")) {
+                        currentSubSubMap.put("value", new ArrayList<>(Arrays.asList(token)));
+                    } else {
+                        currentSubSubMap.put("value", token);
+                    }
                     continue;
+                } else if (currentSubSubMap.get("operator").toString().toLowerCase().equals("in")) {
+                    List<String> values = (List<String>) currentSubSubMap.get("value");
+                    values.add(token);
+                    currentSubSubMap.put("value", values);
                 }
             } else {
                 where.put("expression" + currentSubSubMap.hashCode(), currentSubSubMap);
