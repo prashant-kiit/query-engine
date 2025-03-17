@@ -10,33 +10,34 @@ import java.util.stream.IntStream;
 
 public class Main {
     public static void main(String[] args) {
-        String sourceCode = "query3.sql";
+        String sourceCode = "query1.sql";
         Path pathToSourceCode = Paths.get("Database/Query", sourceCode);
-        List<String> keywords = Symbols.KEYWORDS.getSymbols(); //
 
         try {
             // reading file
             StringBuilder language = getLanguageFromSourceCode(pathToSourceCode);
 
-            // tokenize using comma, white space and new line as delimiters
+            // tokenize
             List<String> tokens = getTokenFromLanguage(language);
-            System.out.println("tokens: " + tokens);
-            // parse tokens based on symbols list
-            Map<String, Object> parseTree = getParseTreeFromTokens(tokens, keywords);
+            // System.out.println("tokens: " + tokens);
+
+            // parse
+            Map<String, Object> parseTree = getParseTreeFromTokens(tokens);
 
             // Print parseTree
             // parseTree.forEach((key, value) -> System.out.println(key + " -> " + value));
             System.out.println(parseTree);
-            // printJson(mapToJson(parseTree));
         } catch (Exception e) {
             System.out.println("Error reading file: " + e);
         }
     }
 
-    private static Map<String, Object> getParseTreeFromTokens(List<String> tokens, List<String> keywords) {
-        Map<String, Object> parseTree1 = parseForFirstPass(tokens, keywords);
+    private static Map<String, Object> getParseTreeFromTokens(List<String> tokens) {
+        Map<String, Object> parseTree1 = parseForFirstPass(tokens);
 
         Map<String, Object> parseTree2 = new LinkedHashMap<>();
+        if (parseTree1.get("SELECT") != null)
+            parseTree2 = parseForSelectPass(parseTree1);
         if (parseTree1.get("WHERE") != null)
             parseTree2 = parseForWherePass(parseTree1);
         if (parseTree1.get("ORDER_BY") != null)
@@ -51,6 +52,31 @@ public class Main {
         // System.out.println("parseTree: " + parseTree2);
 
         return parseTree2;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> parseForSelectPass(Map<String, Object> parseTree) {
+        Map<String, Object> select = new LinkedHashMap<>();
+        List<String> selectTokens = (List<String>) parseTree.get("SELECT");
+        String finalAggregator = null;
+        for (String token : selectTokens) {
+            if (!Symbols.AGGREGATORS_KEYWORDS.getSymbols().contains(token.toLowerCase())) {
+                System.out.println("column: " + token);
+                Map<String, Object> currentSubMap = new LinkedHashMap<>();
+                currentSubMap.put("column", token);
+                currentSubMap.put("aggregator", null);
+                if (finalAggregator != null) {
+                    currentSubMap.put("aggregator", finalAggregator);
+                    finalAggregator = null;
+                }
+                select.put("selectable" + currentSubMap.hashCode(), currentSubMap);
+            } else {
+                System.out.println("aggregator: " + token);
+                finalAggregator = token;
+            }
+        }
+        parseTree.put("SELECT", select);
+        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -186,7 +212,8 @@ public class Main {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> parseForFirstPass(List<String> tokens, List<String> keywords) {
+    private static Map<String, Object> parseForFirstPass(List<String> tokens) {
+        List<String> keywords = Symbols.KEYWORDS.getSymbols();
         Map<String, Object> parseTree = new LinkedHashMap<>();
         String currentKey = "";
 
@@ -221,56 +248,6 @@ public class Main {
 
         return language;
     }
-
-    private static String mapToJson(Map<String, Object> map) {
-        StringBuilder jsonBuilder = new StringBuilder();
-        jsonBuilder.append("{");
-
-        int size = map.size();
-        int count = 0;
-
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            jsonBuilder.append("\"").append(entry.getKey()).append("\":");
-
-            if (entry.getValue() instanceof String) {
-                jsonBuilder.append("\"").append(entry.getValue()).append("\"");
-            } else {
-                jsonBuilder.append(entry.getValue());
-            }
-
-            count++;
-            if (count < size) {
-                jsonBuilder.append(",");
-            }
-        }
-
-        jsonBuilder.append("}");
-        return jsonBuilder.toString();
-    }
-
-    private static void printJson(String jsonString) {
-        try {
-            ProcessBuilder processBuilder = new ProcessBuilder("jq");
-            Process process = processBuilder.start();
-
-            // Write JSON string to process stdin
-            OutputStream outputStream = process.getOutputStream();
-            outputStream.write(jsonString.getBytes());
-            outputStream.close(); // Close stdin after writing
-
-            // Read and print the formatted output
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println(line);
-            }
-
-            // Wait for process to complete
-            process.waitFor();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 }
 
 enum Symbols {
@@ -278,7 +255,8 @@ enum Symbols {
             "values", "delete")),
     OPERATORS(Arrays.asList("and", "or")),
     SEPARATORS(Arrays.asList("\n", "\s", ",", "(", ")")),
-    ORDERS(Arrays.asList("asc", "desc"));
+    ORDERS(Arrays.asList("asc", "desc")),
+    AGGREGATORS_KEYWORDS(Arrays.asList("count", "sum", "avg", "min", "max"));
 
     private final List<String> symbols;
 
